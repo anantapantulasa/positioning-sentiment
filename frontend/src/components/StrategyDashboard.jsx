@@ -1,8 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
+import { getOptimalThresholds } from '../utils/optimalThresholds'
 import './StrategyDashboard.css'
 
-const StrategyDashboard = ({ data, selectedDate, onBinarySignalsChange }) => {
+const StrategyDashboard = ({ data, selectedDate, onBinarySignalsChange, commodityKey }) => {
+  // Get optimal thresholds for this commodity, or use defaults
+  const optimalThresholds = getOptimalThresholds(commodityKey)
+  const defaultLong = optimalThresholds?.long || { commercials: 95, largeSpeculators: 5, smallSpeculators: 5 }
+  const defaultShort = optimalThresholds?.short || { commercials: 5, largeSpeculators: 95, smallSpeculators: 95 }
+
   const [strategy, setStrategy] = useState('long') // 'long' or 'short'
   const [indexEnabled, setIndexEnabled] = useState({
     commercials: true,
@@ -10,19 +16,20 @@ const StrategyDashboard = ({ data, selectedDate, onBinarySignalsChange }) => {
     smallSpeculators: true
   })
   
-  // Thresholds for long strategy
-  const [longThresholds, setLongThresholds] = useState({
-    commercials: 95,      // Commercials > threshold
-    largeSpeculators: 5,  // Large Specs < threshold
-    smallSpeculators: 5   // Small Specs < threshold
-  })
+  // Thresholds for long strategy - initialize with optimal if available
+  const [longThresholds, setLongThresholds] = useState(defaultLong)
   
-  // Thresholds for short strategy
-  const [shortThresholds, setShortThresholds] = useState({
-    commercials: 5,        // Commercials < threshold
-    largeSpeculators: 95,  // Large Specs > threshold
-    smallSpeculators: 95   // Small Specs > threshold
-  })
+  // Thresholds for short strategy - initialize with optimal if available
+  const [shortThresholds, setShortThresholds] = useState(defaultShort)
+  
+  // Update thresholds when commodity changes
+  useEffect(() => {
+    const optimal = getOptimalThresholds(commodityKey)
+    if (optimal) {
+      setLongThresholds(optimal.long)
+      setShortThresholds(optimal.short)
+    }
+  }, [commodityKey])
 
   // Find data for selected date
   const selectedDateData = useMemo(() => {
@@ -203,6 +210,21 @@ const StrategyDashboard = ({ data, selectedDate, onBinarySignalsChange }) => {
             onClick={() => setStrategy('short')}
           >
             Short
+          </button>
+          <button
+            className="auto-button"
+            onClick={() => {
+              const optimal = getOptimalThresholds(commodityKey)
+              if (optimal) {
+                setLongThresholds(optimal.long)
+                setShortThresholds(optimal.short)
+              } else {
+                alert(`No optimal thresholds found for ${commodityKey}`)
+              }
+            }}
+            title="Load optimal thresholds from CSV"
+          >
+            Auto
           </button>
         </div>
       </div>

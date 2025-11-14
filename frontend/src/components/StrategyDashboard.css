@@ -83,6 +83,19 @@
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
+.strategy-buttons button.auto-button {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #1a1a1a;
+  color: #888;
+  margin-left: 10px;
+}
+
+.strategy-buttons button.auto-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
 .selected-date-info {
   margin-bottom: 20px;
   padding-bottom: 15px;

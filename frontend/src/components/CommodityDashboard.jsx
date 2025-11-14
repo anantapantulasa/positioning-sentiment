@@ -157,6 +157,7 @@ const CommodityDashboard = ({ commodityKey, commodityName }) => {
             data={commodityData}
             selectedDate={selectedDate}
             onBinarySignalsChange={setBinarySignals}
+            commodityKey={commodityKey}
           />
           <SignalDisplay
             signal={tradingSignal}
