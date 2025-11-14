@@ -13,33 +13,66 @@ from contextlib import asynccontextmanager
 from services.news_scraper import NewsScraper
 from services.sentiment_analyzer import SentimentAnalyzer
 from services.signal_calculator import SignalCalculator
+from commodity_config import COMMODITIES, get_commodity_config, get_available_commodities
 
 # Initialize services
-news_scraper = NewsScraper()
 sentiment_analyzer = SentimentAnalyzer()
 signal_calculator = SignalCalculator()
 
-# Load gold data
-GOLD_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "gold.csv")
-gold_df = None
+# Cache for loaded commodity data
+commodity_data_cache = {}
 
-def load_gold_data():
-    global gold_df
-    if gold_df is None:
-        gold_df = pd.read_csv(GOLD_DATA_PATH)
-        # Convert time column to datetime - try multiple formats
-        gold_df['time'] = pd.to_datetime(gold_df['time'], format='%m/%d/%y', errors='coerce')
-        # If parsing failed, try without format specification
-        if gold_df['time'].isna().any():
-            gold_df['time'] = pd.to_datetime(gold_df['time'], errors='coerce')
-        # Remove rows with invalid dates
-        gold_df = gold_df.dropna(subset=['time'])
-        # Filter to start from Sept 1, 2022
-        start_date = pd.to_datetime('2022-09-01')
-        gold_df = gold_df[gold_df['time'] >= start_date]
-        # Sort by date
-        gold_df = gold_df.sort_values('time').reset_index(drop=True)
-    return gold_df
+def load_commodity_data(commodity: str):
+    """Load data for a specific commodity"""
+    import logging
+    logger = logging.getLogger(__name__)
+    global commodity_data_cache
+    
+    if commodity not in commodity_data_cache:
+        try:
+            logger.info(f"Loading data for commodity: {commodity}")
+            config = get_commodity_config(commodity)
+            data_path = os.path.join(os.path.dirname(__file__), "..", "data", config['data_file'])
+            logger.info(f"Data file path: {data_path}")
+            
+            if not os.path.exists(data_path):
+                raise FileNotFoundError(f"Data file not found: {data_path}")
+            
+            df = pd.read_csv(data_path)
+            logger.info(f"Loaded {len(df)} rows from {config['data_file']}")
+            
+            # Convert time column to datetime - try multiple formats
+            # First try without format to handle ISO dates (YYYY-MM-DD) and other formats
+            df['time'] = pd.to_datetime(df['time'], errors='coerce')
+            # If some dates failed to parse, try M/D/YY format (for gold.csv) on the failed ones
+            if df['time'].isna().any():
+                # Only try the second format on rows that failed to parse
+                mask = df['time'].isna()
+                df.loc[mask, 'time'] = pd.to_datetime(df.loc[mask, 'time'], format='%m/%d/%y', errors='coerce')
+            # Remove rows with invalid dates
+            df = df.dropna(subset=['time'])
+            logger.info(f"After date parsing: {len(df)} rows")
+            
+            # Filter to start from Sept 1, 2022
+            start_date = pd.to_datetime('2022-09-01')
+            df = df[df['time'] >= start_date]
+            logger.info(f"After filtering from 2022-09-01: {len(df)} rows")
+            
+            # Sort by date
+            df = df.sort_values('time').reset_index(drop=True)
+            
+            # Log for debugging
+            if len(df) == 0:
+                logger.warning(f"No data found for {commodity} after filtering from 2022-09-01")
+            else:
+                logger.info(f"Successfully loaded {len(df)} rows for {commodity}")
+            
+            commodity_data_cache[commodity] = df
+        except Exception as e:
+            logger.error(f"Error loading {commodity} data: {str(e)}", exc_info=True)
+            raise
+    
+    return commodity_data_cache[commodity]
 
 def clean_data_for_json(df):
     """Clean DataFrame to make it JSON serializable"""
@@ -65,12 +98,20 @@ def clean_data_for_json(df):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    load_gold_data()
+    # Startup - preload all commodity data
+    import logging
+    logger = logging.getLogger(__name__)
+    for commodity in get_available_commodities():
+        try:
+            load_commodity_data(commodity)
+            logger.info(f"✅ Successfully loaded {commodity} data")
+        except Exception as e:
+            logger.error(f"❌ Failed to load {commodity} data during startup: {str(e)}")
+            # Continue loading other commodities even if one fails
     yield
     # Shutdown (if needed)
 
-app = FastAPI(title="Gold Trading Signal API", lifespan=lifespan)
+app = FastAPI(title="Commodity Trading Signal API", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -83,20 +124,58 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "Gold Trading Signal API"}
+    return {"message": "Commodity Trading Signal API", "available_commodities": get_available_commodities()}
 
-@app.get("/api/gold/data")
-async def get_gold_data():
-    """Get all gold price and index data"""
-    df = load_gold_data()
-    cleaned_records = clean_data_for_json(df)
-    return cleaned_records
+@app.get("/api/commodities")
+async def get_available_commodities_list():
+    """Get list of available commodities"""
+    commodities = []
+    for key in get_available_commodities():
+        config = get_commodity_config(key)
+        commodities.append({
+            "key": key,
+            "name": config['name']
+        })
+    return commodities
 
-@app.get("/api/gold/data/date/{target_date}")
-async def get_gold_data_by_date(target_date: str):
-    """Get gold data for a specific date"""
-    df = load_gold_data()
+@app.get("/api/{commodity}/data")
+async def get_commodity_data(commodity: str):
+    """Get all price and index data for a commodity"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Received request for commodity: {commodity}")
+    
     try:
+        # First check if commodity is valid
+        try:
+            config = get_commodity_config(commodity)
+            logger.info(f"Commodity {commodity} is valid, config: {config['name']}")
+        except ValueError as e:
+            logger.error(f"Invalid commodity: {commodity} - {str(e)}")
+            raise HTTPException(status_code=404, detail=f"Unknown commodity: {commodity}. Available: {', '.join(get_available_commodities())}")
+        
+        # Load the data
+        df = load_commodity_data(commodity)
+        if df is None or len(df) == 0:
+            logger.warning(f"No data available for {commodity} after filtering")
+            raise HTTPException(status_code=404, detail=f"No data available for {commodity} after filtering from 2022-09-01")
+        
+        cleaned_records = clean_data_for_json(df)
+        logger.info(f"Returning {len(cleaned_records)} records for {commodity}")
+        return cleaned_records
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error loading {commodity} data: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading data: {str(e)}")
+
+@app.get("/api/{commodity}/data/date/{target_date}")
+async def get_commodity_data_by_date(commodity: str, target_date: str):
+    """Get commodity data for a specific date"""
+    try:
+        df = load_commodity_data(commodity)
         target = pd.to_datetime(target_date)
         # Find closest date
         df['date_diff'] = abs(df['time'] - target)
@@ -111,17 +190,25 @@ async def get_gold_data_by_date(target_date: str):
             else:
                 result[key] = value
         return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}")
 
-@app.get("/api/gold/signal/{target_date}")
-async def get_trading_signal(target_date: str):
-    """Get trading signal (buy/sell) for a specific date"""
+@app.get("/api/{commodity}/signal/{target_date}")
+async def get_trading_signal(commodity: str, target_date: str):
+    """Get trading signal (buy/sell) for a specific date and commodity"""
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"📅 Received signal request for date: {target_date}")
-    df = load_gold_data()
+    try:
+        config = get_commodity_config(commodity)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    logger.info(f"📅 Received signal request for {commodity} on date: {target_date}")
+    df = load_commodity_data(commodity)
+    
     try:
         target = pd.to_datetime(target_date)
         logger.info(f"📅 Parsed target date: {target}")
@@ -152,9 +239,9 @@ async def get_trading_signal(target_date: str):
         price_direction = "up" if price_change > 0 else "down" if price_change < 0 else "neutral"
         
         # Scrape news for the USER-SELECTED date (target), not the closest price data date
-        # This ensures we get news for the date the user actually selected
         logger.info(f"📰 Scraping news for user-selected date: {target}")
         try:
+            news_scraper = config['news_scraper']
             news_articles = await news_scraper.scrape_news_for_date(target)
             logger.info(f"📰 Found {len(news_articles)} news articles")
         except Exception as e:
@@ -191,16 +278,20 @@ async def get_trading_signal(target_date: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error calculating signal: {str(e)}")
 
-@app.get("/api/gold/news/{target_date}")
-async def get_news_for_date(target_date: str):
-    """Get news articles for a specific date"""
+@app.get("/api/{commodity}/news/{target_date}")
+async def get_news_for_date(commodity: str, target_date: str):
+    """Get news articles for a specific date and commodity"""
     try:
+        config = get_commodity_config(commodity)
         target = pd.to_datetime(target_date)
+        news_scraper = config['news_scraper']
         articles = await news_scraper.scrape_news_for_date(target)
         return {
             "date": target_date,
             "articles": articles
         }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching news: {str(e)}")
 

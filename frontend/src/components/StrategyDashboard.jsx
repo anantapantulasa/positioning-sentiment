@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
 import './StrategyDashboard.css'
 
-const StrategyDashboard = ({ data, selectedDate }) => {
+const StrategyDashboard = ({ data, selectedDate, onBinarySignalsChange }) => {
   const [strategy, setStrategy] = useState('long') // 'long' or 'short'
   const [indexEnabled, setIndexEnabled] = useState({
     commercials: true,
@@ -69,8 +69,8 @@ const StrategyDashboard = ({ data, selectedDate }) => {
     }
   }, [selectedDateData])
 
-  // Calculate binary signal
-  const binarySignal = useMemo(() => {
+  // Calculate long binary signal
+  const longBinarySignal = useMemo(() => {
     if (!selectedDateData) return null
 
     const commercials = indexValues.commercials
@@ -82,22 +82,53 @@ const StrategyDashboard = ({ data, selectedDate }) => {
       return null
     }
 
-    if (strategy === 'long') {
-      // Long: Commercials > threshold AND Large Specs < threshold AND Small Specs < threshold
-      const commercialsCheck = !indexEnabled.commercials || commercials > longThresholds.commercials
-      const largeSpecsCheck = !indexEnabled.largeSpeculators || largeSpecs < longThresholds.largeSpeculators
-      const smallSpecsCheck = !indexEnabled.smallSpeculators || smallSpecs < longThresholds.smallSpeculators
-      
-      return commercialsCheck && largeSpecsCheck && smallSpecsCheck
-    } else {
-      // Short: Commercials < threshold AND Large Specs > threshold AND Small Specs > threshold
-      const commercialsCheck = !indexEnabled.commercials || commercials < shortThresholds.commercials
-      const largeSpecsCheck = !indexEnabled.largeSpeculators || largeSpecs > shortThresholds.largeSpeculators
-      const smallSpecsCheck = !indexEnabled.smallSpeculators || smallSpecs > shortThresholds.smallSpeculators
-      
-      return commercialsCheck && largeSpecsCheck && smallSpecsCheck
+    // Long: Commercials > threshold AND Large Specs < threshold AND Small Specs < threshold
+    const commercialsCheck = !indexEnabled.commercials || commercials > longThresholds.commercials
+    const largeSpecsCheck = !indexEnabled.largeSpeculators || largeSpecs < longThresholds.largeSpeculators
+    const smallSpecsCheck = !indexEnabled.smallSpeculators || smallSpecs < longThresholds.smallSpeculators
+    
+    return commercialsCheck && largeSpecsCheck && smallSpecsCheck
+  }, [indexValues, indexEnabled, longThresholds, selectedDateData])
+
+  // Calculate short binary signal
+  const shortBinarySignal = useMemo(() => {
+    if (!selectedDateData) return null
+
+    const commercials = indexValues.commercials
+    const largeSpecs = indexValues.largeSpeculators
+    const smallSpecs = indexValues.smallSpeculators
+
+    // Check if any values are null
+    if (commercials === null || largeSpecs === null || smallSpecs === null) {
+      return null
     }
-  }, [strategy, indexValues, indexEnabled, longThresholds, shortThresholds, selectedDateData])
+
+    // Short: Commercials < threshold AND Large Specs > threshold AND Small Specs > threshold
+    const commercialsCheck = !indexEnabled.commercials || commercials < shortThresholds.commercials
+    const largeSpecsCheck = !indexEnabled.largeSpeculators || largeSpecs > shortThresholds.largeSpeculators
+    const smallSpecsCheck = !indexEnabled.smallSpeculators || smallSpecs > shortThresholds.smallSpeculators
+    
+    return commercialsCheck && largeSpecsCheck && smallSpecsCheck
+  }, [indexValues, indexEnabled, shortThresholds, selectedDateData])
+
+  // Get the current binary signal based on strategy
+  const binarySignal = useMemo(() => {
+    if (strategy === 'long') {
+      return longBinarySignal
+    } else {
+      return shortBinarySignal
+    }
+  }, [strategy, longBinarySignal, shortBinarySignal])
+
+  // Notify parent component of binary signals
+  useEffect(() => {
+    if (onBinarySignalsChange) {
+      onBinarySignalsChange({
+        long: longBinarySignal,
+        short: shortBinarySignal
+      })
+    }
+  }, [longBinarySignal, shortBinarySignal, onBinarySignalsChange])
 
   const handleIndexToggle = (index) => {
     setIndexEnabled(prev => ({
@@ -122,15 +153,18 @@ const StrategyDashboard = ({ data, selectedDate }) => {
   }
 
   const getCurrentThresholds = () => {
-    return strategy === 'long' ? longThresholds : shortThresholds
+    if (strategy === 'long') return longThresholds
+    if (strategy === 'short') return shortThresholds
+    return {} // Hold doesn't use thresholds
   }
 
   const getThresholdOperator = (index, strategyType) => {
     if (strategyType === 'long') {
       return index === 'commercials' ? '>' : '<'
-    } else {
+    } else if (strategyType === 'short') {
       return index === 'commercials' ? '<' : '>'
     }
+    return '' // Hold doesn't use operators
   }
 
   const checkRequirement = (index, value, threshold, operator) => {

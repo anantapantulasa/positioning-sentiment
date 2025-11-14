@@ -4,7 +4,7 @@ import './IndexToggles.css'
 const IndexToggles = ({ visibility, onToggle }) => {
   const indices = [
     { key: 'commercials', label: 'Commercials Index', color: '#8884d8' },
-    { key: 'largeSpeculators', label: 'Large Speculators Index', color: '#82ca9d' },
+    { key: 'largeSpeculators', label: 'Large Speculators Index', color: '#00ff88' },
     { key: 'smallSpeculators', label: 'Small Speculators Index', color: '#ffc658' }
   ]
 
@@ -19,8 +19,8 @@ const IndexToggles = ({ visibility, onToggle }) => {
             onClick={() => onToggle(index.key)}
             style={{
               borderColor: index.color,
-              backgroundColor: visibility[index.key] ? index.color : 'transparent',
-              color: visibility[index.key] ? 'white' : index.color
+              backgroundColor: visibility[index.key] ? `rgba(${index.key === 'commercials' ? '136, 132, 216' : index.key === 'largeSpeculators' ? '0, 255, 136' : '255, 198, 88'}, 0.2)` : 'transparent',
+              color: visibility[index.key] ? index.color : index.color
             }}
           >
             {index.label}

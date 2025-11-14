@@ -1,7 +1,9 @@
 .date-selector-container {
   margin-top: 30px;
   padding-top: 20px;
-  border-top: 2px solid #f0f0f0;
+  border-top: 1px solid #1a1a1a;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .date-selector-header {
@@ -14,8 +16,11 @@
 
 .date-selector-header h3 {
   margin: 0;
-  color: #333;
+  color: #ffffff;
   font-size: 1.2rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .date-input-wrapper {
@@ -27,38 +32,43 @@
 
 .date-input-wrapper label {
   font-weight: 500;
-  color: #555;
+  color: #888;
+  text-transform: uppercase;
+  font-size: 0.9em;
+  letter-spacing: 0.5px;
 }
 
 .date-input {
   padding: 8px 12px;
-  border: 2px solid #667eea;
+  border: 1px solid #1a1a1a;
   border-radius: 8px;
   font-size: 1rem;
-  color: #333;
-  background: white;
+  color: #e0e0e0;
+  background: #000;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .date-input:hover {
-  border-color: #5568d3;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
 .date-input:focus {
   outline: none;
-  border-color: #5568d3;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+  background: #0a0a0a;
 }
 
 .selected-date-display {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #667eea;
-  background: rgba(102, 126, 234, 0.1);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
   padding: 8px 16px;
   border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 @media (max-width: 768px) {

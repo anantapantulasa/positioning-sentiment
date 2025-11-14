@@ -1,7 +1,10 @@
 .index-toggles h3 {
   margin-bottom: 15px;
-  color: #333;
+  color: #ffffff;
   font-size: 1.2rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .toggle-buttons {
@@ -12,22 +15,25 @@
 
 .toggle-button {
   padding: 10px 20px;
-  border: 2px solid;
+  border: 1px solid;
   border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
   background: transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .toggle-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 15px currentColor;
 }
 
 .toggle-button.active {
   font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 20px currentColor;
+  text-shadow: 0 0 10px currentColor;
 }
 

@@ -11,7 +11,7 @@ import {
 } from 'recharts'
 import { format } from 'date-fns'
 
-const GoldChart = ({ data }) => {
+const GoldChart = ({ data, commodityName = 'Gold' }) => {
   // Filter data to start from Sept 1, 2022
   const startDate = new Date('2022-09-01')
   const filteredData = data.filter(item => {
@@ -36,7 +36,7 @@ const GoldChart = ({ data }) => {
 
   return (
     <div className="chart-container">
-      <h2>Gold Price Over Time</h2>
+      <h2>{commodityName} Price Over Time</h2>
       <ResponsiveContainer width="100%" height={500}>
         <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
